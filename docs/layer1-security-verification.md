@@ -94,3 +94,16 @@ query LegitimateOrgARead($id: uuid!) {
   }
 }
 ```
+
+---
+
+## Supplementary Authorization & Escalation Verification
+
+| Test | Expected | Actual | Result |
+| :--- | :--- | :--- | :--- |
+| **1A — UPDATE Org A membership** | DENIED / null | `null` | **PASS** |
+| **1B — DELETE Org A membership** | DENIED / null | `null` | **PASS** |
+| **1C — Change Org A user role** | DENIED / 0 affected rows | `{"affected_rows":0}` | **PASS** |
+| **1D — Add User B to Org A** | DENIED | `DENIED: check constraint of an insert/update permission has failed` | **PASS** |
+| **2A — Insert workflow_step into Org A** | DENIED | `DENIED: check constraint of an insert/update permission has failed` | **PASS** |
+| **2B — Insert workflow_trigger into Org A** | DENIED | `DENIED: check constraint of an insert/update permission has failed` | **PASS** |
