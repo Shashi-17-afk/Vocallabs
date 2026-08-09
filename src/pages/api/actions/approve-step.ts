@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getDbClient, getCallerOrgRole } from '@/lib/server-auth';
+import { runWorkflowExecutionEngine } from '@/lib/execution-engine';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -27,7 +28,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const client = await getDbClient();
 
   try {
-    // 1. Fetch step_run, workflow_run, workflow_step, and workflow org_id
     const stepRunQuery = await client.query(
       `SELECT 
          sr.id AS step_run_id,
@@ -52,7 +52,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const sr = stepRunQuery.rows[0];
 
-    // 2. Perform Layer 2 Authorization Check
     const role = await getCallerOrgRole(client, userId as string, sr.org_id);
     if (!role || role === 'viewer') {
       await client.end();
@@ -61,7 +60,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
-    // 3. Verify target step is an approval_gate
     if (sr.step_type !== 'approval_gate') {
       await client.end();
       return res.status(400).json({
@@ -69,7 +67,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
-    // 4. Verify step run is currently in 'paused' state
     if (sr.step_run_status !== 'paused') {
       await client.end();
       return res.status(400).json({
@@ -77,7 +74,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
-    // 5. Update step_run and workflow_run statuses
     await client.query('BEGIN');
 
     const updateStepRes = await client.query(
@@ -103,6 +99,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     await client.end();
 
     const updatedStep = updateStepRes.rows[0];
+
+    // Await Execution Engine resume loop
+    await runWorkflowExecutionEngine(sr.workflow_run_id);
 
     return res.status(200).json({
       status: 'resumed',
