@@ -1,0 +1,15 @@
+name: notify_step_completed
+table:
+  name: step_runs
+  schema: public
+webhook: http://host.docker.internal:3000/api/events/notify
+headers:
+  - name: x-hasura-event-secret
+    value_from_env: EVENT_SECRET
+update:
+  columns:
+    - status
+retry_conf:
+  num_retries: 3
+  interval_sec: 10
+  timeout_sec: 60

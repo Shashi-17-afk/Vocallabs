@@ -1,0 +1,26 @@
+{
+  "name": "notify_step_completed",
+  "source": "default",
+  "table": {
+    "schema": "public",
+    "name": "step_runs"
+  },
+  "webhook": "http://host.docker.internal:3000/api/events/notify",
+  "headers": [
+    {
+      "name": "x-hasura-event-secret",
+      "value": "test_event_secret_key_123"
+    }
+  ],
+  "update": {
+    "columns": [
+      "status"
+    ]
+  },
+  "retry_conf": {
+    "num_retries": 3,
+    "interval_sec": 10,
+    "timeout_sec": 60
+  },
+  "replace": false
+}
