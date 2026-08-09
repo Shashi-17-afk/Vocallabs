@@ -132,17 +132,15 @@ export async function executeStep(
           body: { success: true, message: `HTTP Request to ${url} succeeded` },
         };
       } else if (step.type === 'db_write') {
-        const table = step.config?.table || 'audit_logs';
         const rawPayload = step.config?.payload || { action: 'workflow_step_executed' };
         
         await client.query(
-          `INSERT INTO public.db_write_audit_logs (workflow_run_id, table_name, record_payload)
-           VALUES ($1, $2, $3);`,
-          [ctx.workflowRunId, table, JSON.stringify(rawPayload)]
+          `INSERT INTO public.db_write_audit_logs (org_id, workflow_run_id, step_run_id, payload)
+           VALUES ($1, $2, $3, $4::jsonb);`,
+          [ctx.orgId, ctx.workflowRunId, stepRunId, JSON.stringify(rawPayload)]
         );
 
         output = {
-          table,
           written: true,
           timestamp: new Date().toISOString(),
         };
