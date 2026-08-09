@@ -18,7 +18,7 @@ if (fs.existsSync(envPath)) {
 }
 
 async function setupPermissions() {
-  console.log('=== Establishing Complete Hasura Layer 1 Permission Rules ===');
+  console.log('=== Establishing Native Hasura GraphQL CRUD & Owner-Only Permission Rules ===');
   const graphqlUrl = process.env.NEXT_PUBLIC_HASURA_GRAPHQL_URL;
   const adminSecret = process.env.HASURA_GRAPHQL_ADMIN_SECRET;
   const metadataUrl = graphqlUrl.replace(/\/v1\/graphql\/?$/, '/v1/metadata');
@@ -26,7 +26,7 @@ async function setupPermissions() {
   const tables = ['organizations', 'org_members', 'workflows', 'workflow_steps', 'workflow_triggers', 'workflow_runs', 'step_runs', 'org_monthly_usage'];
   const actions = ['select', 'insert', 'update', 'delete'];
 
-  // Step 1: Drop existing permissions one by one or in bulk
+  // Step 1: Drop existing permissions
   console.log('Clearing existing permissions for role user...');
   for (const table of tables) {
     for (const action of actions) {
@@ -47,12 +47,12 @@ async function setupPermissions() {
           })
         });
       } catch (e) {
-        // Ignore
+        // Ignore drop errors
       }
     }
   }
 
-  // Helper rules
+  // Base Membership Filters
   const isMemberFilter = {
     organization: {
       members: {
@@ -79,6 +79,42 @@ async function setupPermissions() {
     }
   };
 
+  // -----------------------------------------------------------------
+  // Fine-Grained Step Permission Filter:
+  // Normal steps (llm_call, http_request, conditional_branch, approval_gate) -> Owner OR Editor
+  // Privileged steps (db_write, notify) -> OWNER ONLY
+  // -----------------------------------------------------------------
+  const stepOwnerOrEditorCheck = {
+    _or: [
+      {
+        type: { _nin: ['db_write', 'notify'] },
+        workflow: isOwnerOrEditorFilter
+      },
+      {
+        type: { _in: ['db_write', 'notify'] },
+        workflow: isOwnerFilter
+      }
+    ]
+  };
+
+  // -----------------------------------------------------------------
+  // Fine-Grained Trigger Permission Filter:
+  // Normal triggers (manual, schedule) -> Owner OR Editor
+  // Privileged triggers (webhook) -> OWNER ONLY
+  // -----------------------------------------------------------------
+  const triggerOwnerOrEditorCheck = {
+    _or: [
+      {
+        type: { _neq: 'webhook' },
+        workflow: isOwnerOrEditorFilter
+      },
+      {
+        type: { _eq: 'webhook' },
+        workflow: isOwnerFilter
+      }
+    ]
+  };
+
   const createPermissions = [
     // 1. ORGANIZATIONS (Select)
     {
@@ -94,7 +130,7 @@ async function setupPermissions() {
       }
     },
 
-    // 2. ORG_MEMBERS (Select, Insert, Update, Delete)
+    // 2. ORG_MEMBERS (Select, Insert, Update, Delete - Owner Only for mutations)
     {
       type: 'pg_create_select_permission',
       args: {
@@ -194,7 +230,7 @@ async function setupPermissions() {
       }
     },
 
-    // 4. WORKFLOW_STEPS (Select, Insert, Update, Delete)
+    // 4. WORKFLOW_STEPS (Select, Insert, Update, Delete with fine-grained db_write/notify owner restriction)
     {
       type: 'pg_create_select_permission',
       args: {
@@ -214,7 +250,7 @@ async function setupPermissions() {
         table: { schema: 'public', name: 'workflow_steps' },
         role: 'user',
         permission: {
-          check: { workflow: isOwnerOrEditorFilter },
+          check: stepOwnerOrEditorCheck,
           columns: ['workflow_id', 'position', 'type', 'name', 'config']
         }
       }
@@ -226,8 +262,8 @@ async function setupPermissions() {
         table: { schema: 'public', name: 'workflow_steps' },
         role: 'user',
         permission: {
-          filter: { workflow: isOwnerOrEditorFilter },
-          check: { workflow: isOwnerOrEditorFilter },
+          filter: stepOwnerOrEditorCheck,
+          check: stepOwnerOrEditorCheck,
           columns: ['position', 'type', 'name', 'config']
         }
       }
@@ -239,12 +275,12 @@ async function setupPermissions() {
         table: { schema: 'public', name: 'workflow_steps' },
         role: 'user',
         permission: {
-          filter: { workflow: isOwnerFilter }
+          filter: { workflow: isOwnerOrEditorFilter }
         }
       }
     },
 
-    // 5. WORKFLOW_TRIGGERS (Select, Insert, Update, Delete)
+    // 5. WORKFLOW_TRIGGERS (Select, Insert, Update, Delete with fine-grained webhook owner restriction)
     {
       type: 'pg_create_select_permission',
       args: {
@@ -264,7 +300,7 @@ async function setupPermissions() {
         table: { schema: 'public', name: 'workflow_triggers' },
         role: 'user',
         permission: {
-          check: { workflow: isOwnerOrEditorFilter },
+          check: triggerOwnerOrEditorCheck,
           columns: ['workflow_id', 'type', 'config', 'enabled']
         }
       }
@@ -276,8 +312,8 @@ async function setupPermissions() {
         table: { schema: 'public', name: 'workflow_triggers' },
         role: 'user',
         permission: {
-          filter: { workflow: isOwnerOrEditorFilter },
-          check: { workflow: isOwnerOrEditorFilter },
+          filter: triggerOwnerOrEditorCheck,
+          check: triggerOwnerOrEditorCheck,
           columns: ['type', 'config', 'enabled']
         }
       }
@@ -289,7 +325,7 @@ async function setupPermissions() {
         table: { schema: 'public', name: 'workflow_triggers' },
         role: 'user',
         permission: {
-          filter: { workflow: isOwnerFilter }
+          filter: { workflow: isOwnerOrEditorFilter }
         }
       }
     },

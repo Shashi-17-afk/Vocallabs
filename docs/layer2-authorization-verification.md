@@ -1,56 +1,71 @@
-# Layer 2 Server-Side Authorization & Workflow CRUD Verification Report
+# Native Hasura GraphQL Engine Workflow CRUD & Layer 2 Authorization Report
 
-This document records the empirical verification results for Phase 6 (Layer 2 Server-Side Authorization Rules) and Phase 7 (Workflow CRUD Operations).
+This document records the empirical verification results for Phase 7 (Native Hasura GraphQL Engine Workflow CRUD Operations) and Phase 6 (Layer 2 Server-Side Authorization Rules).
 
-## Verification Matrix
+## Hasura GraphQL Operations Verification Matrix
 
-| Test | Role | Operation | Expected | Actual | Result |
+| Test | User Role | GraphQL Operation | Expected | Actual Result | Status |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **1. Owner workflow CRUD** | Owner A | `Create Workflow` | PASS (Created) | `Created UUID 81d5f96f-997a-4155-ba0d-4a49a7fa7cb5` | **PASS** |
-| **2. Editor workflow CRUD** | Editor A | `Create Workflow` | PASS (Created) | `Created UUID a5cad2c5-e059-49cb-8d10-df1dfc0b2c11` | **PASS** |
-| **3. Viewer workflow read** | Viewer A | `workflows_by_pk` | PASS (Returned workflow) | `{"id":"81d5f96f-997a-4155-ba0d-4a49a7fa7cb5","name":"Owner Created Workflow"}` | **PASS** |
-| **4. Viewer workflow mutation** | Viewer A | `insert_workflows_one` | DENIED | `DENIED: check constraint of an insert/update permission has failed` | **PASS** |
-| **5. Editor adding normal step** | Editor A | `Add step (llm_call)` | PASS (200 OK) | `Status 200, Step ID 2d93a118-6307-4992-a945-3027a4eadb42` | **PASS** |
-| **6. Editor adding db_write** | Editor A | `Add step (db_write)` | DENIED (403 Forbidden) | `Status 403, FORBIDDEN: Step type 'db_write' requires 'owner' role permission` | **PASS** |
-| **7. Editor adding notify** | Editor A | `Add step (notify)` | DENIED (403 Forbidden) | `Status 403, FORBIDDEN: Step type 'notify' requires 'owner' role permission` | **PASS** |
-| **8. Editor creating webhook trigger** | Editor A | `Add trigger (webhook)` | DENIED (403 Forbidden) | `Status 403, FORBIDDEN: Trigger type 'webhook' requires 'owner' role permission` | **PASS** |
-| **9. Owner adding db_write** | Owner A | `Add step (db_write)` | PASS (200 OK) | `Status 200, Step ID d7e93a86-800d-4cae-a424-4c7798a95c2b` | **PASS** |
-| **10. Owner adding notify** | Owner A | `Add step (notify)` | PASS (200 OK) | `Status 200, Step ID 7c5dd1b8-47fc-4795-838e-676658fca043` | **PASS** |
-| **11. Owner creating webhook trigger** | Owner A | `Add trigger (webhook)` | PASS (200 OK) | `Status 200, Trigger ID 7a8bac43-3569-4499-b16f-c9b24d232e9f` | **PASS** |
-| **12. Org B attack against Org A** | Owner B (Org B) | `Modify Org A Workflow` | DENIED (403 Forbidden) | `Status 403, FORBIDDEN: Role 'non-member' cannot modify workflow steps` | **PASS** |
-| **Action: triggerWorkflowRun (Editor)** | Editor A | `triggerWorkflowRun` | PASS (Started) | `Run ID a3e4e6a5-2aec-426a-84a8-d2d36fb550ce` | **PASS** |
-| **Action: triggerWorkflowRun (Viewer)** | Viewer A | `triggerWorkflowRun` | DENIED (403) | `Status 403, FORBIDDEN: Role 'viewer' is not authorized to trigger workflow execution` | **PASS** |
-| **Action: approveStep (Viewer)** | Viewer A | `approveStep` | DENIED (403) | `Status 403, FORBIDDEN: Role 'viewer' is not authorized to approve workflow steps` | **PASS** |
-| **Action: approveStep (Editor)** | Editor A | `approveStep` | PASS (Resumed) | `Status resumed, Approved by 44444444-4444-4444-a444-444444444444` | **PASS** |
+| **1. Owner creates workflow** | Owner A | `GraphQL insert_workflows_one` | PASS | `Created UUID 9f644919-7ea9-409a-8073-7a7c894ff1b8` | **PASS** |
+| **2. Editor creates workflow** | Editor A | `GraphQL insert_workflows_one` | PASS | `Created UUID 76f885ca-8120-4d3a-b84e-e951b7dfd98d` | **PASS** |
+| **3. Editor edits workflow** | Editor A | `GraphQL update_workflows_by_pk` | PASS | `{"id":"9f644919-7ea9-409a-8073-7a7c894ff1b8","name":"Updated Org A Workflow Name"}` | **PASS** |
+| **4. Editor creates normal step** | Editor A | `GraphQL insert_workflow_steps_one` | PASS | `Created Step UUID 184fd214-459f-4715-9d77-482e72f47f34` | **PASS** |
+| **5. Editor edits normal step** | Editor A | `GraphQL update_workflow_steps_by_pk` | PASS | `{"id":"184fd214-459f-4715-9d77-482e72f47f34","name":"Renamed LLM Step"}` | **PASS** |
+| **6. Editor reorders steps** | Editor A | `GraphQL update_workflow_steps_many` | PASS | `{"update_workflow_steps_many":[{"affected_rows":1},{"affected_rows":1}]}` | **PASS** |
+| **7. Editor cannot create db_write** | Editor A | `GraphQL insert_workflow_steps_one (db_write)` | DENIED | `DENIED: check constraint of an insert/update permission has failed` | **PASS** |
+| **8. Editor cannot create notify** | Editor A | `GraphQL insert_workflow_steps_one (notify)` | DENIED | `DENIED: check constraint of an insert/update permission has failed` | **PASS** |
+| **9. Editor cannot create webhook trigger** | Editor A | `GraphQL insert_workflow_triggers_one (webhook)` | DENIED | `DENIED: check constraint of an insert/update permission has failed` | **PASS** |
+| **10. Owner creates db_write** | Owner A | `GraphQL insert_workflow_steps_one (db_write)` | PASS | `Created Step UUID 970b382a-8f12-4a01-a1b3-35061ce48ffc` | **PASS** |
+| **11. Owner creates notify** | Owner A | `GraphQL insert_workflow_steps_one (notify)` | PASS | `Created Step UUID 943cc3a7-2616-46fc-a5d8-2019b1869d9a` | **PASS** |
+| **12. Owner creates webhook trigger** | Owner A | `GraphQL insert_workflow_triggers_one (webhook)` | PASS | `Created Trigger UUID b422e5f7-c0fd-419b-886d-2f158cbbb350` | **PASS** |
+| **13. Owner/editor edits trigger** | Owner A | `GraphQL update_workflow_triggers_by_pk` | PASS | `{"id":"b422e5f7-c0fd-419b-886d-2f158cbbb350","enabled":false}` | **PASS** |
+| **14. Viewer cannot mutate** | Viewer A | `GraphQL insert_workflows_one` | DENIED | `DENIED: check constraint of an insert/update permission has failed` | **PASS** |
+| **15. Org B cross-org mutation** | Owner B (Org B) | `GraphQL update_workflows_by_pk` | DENIED (null) | `null` | **PASS** |
+| **16. Workflow aggregate query** | Editor A | `GraphQL workflows_by_pk with nested steps, triggers, runs` | PASS (Returned steps + triggers + recent run) | `Steps: 4, Triggers: 1, Run Status: completed` | **PASS** |
 
 ---
 
-## Role Capabilities & Server-Side Enforcement Architecture
+## Architecture: Native Hasura GraphQL API vs Internal Server Endpoints
 
-| Role | Workflow Read | Workflow Create/Edit | Workflow Delete | Normal Steps | Privileged Steps (`db_write`, `notify`) | Webhook Triggers | Trigger Run Action | Approve Step Action |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Owner** | Allowed | Allowed | Allowed | Allowed | Allowed | Allowed | Allowed | Allowed |
-| **Editor** | Allowed | Allowed | Denied | Allowed | **Denied (403)** | **Denied (403)** | Allowed | Allowed |
-| **Viewer** | Allowed | Denied | Denied | Denied | Denied | Denied | **Denied (403)** | **Denied (403)** |
+### 1. Primary Assignment Hasura GraphQL Engine Interface (`/v1/graphql`)
+All workflow, step, and trigger CRUD operations are executed directly against Hasura GraphQL Engine using standard GraphQL queries and mutations:
+
+* **Create Workflow**: `mutation { insert_workflows_one(object: { org_id, name, created_by }) { id } }`
+* **Update Workflow**: `mutation { update_workflows_by_pk(pk_columns: { id }, _set: { name, description }) { id } }`
+* **Delete Workflow**: `mutation { delete_workflows_by_pk(id) { id } }`
+* **Create Step**: `mutation { insert_workflow_steps_one(object: { workflow_id, position, type, name, config }) { id } }`
+* **Update Step**: `mutation { update_workflow_steps_by_pk(pk_columns: { id }, _set: { name, config }) { id } }`
+* **Reorder Steps**: `mutation { update_workflow_steps_many(updates: [{ where: { id: { _eq: "step1" } }, _set: { position: 1 } }, { where: { id: { _eq: "step2" } }, _set: { position: 2 } }]) { affected_rows } }`
+* **Delete Step**: `mutation { delete_workflow_steps_by_pk(id) { id } }`
+* **Create Trigger**: `mutation { insert_workflow_triggers_one(object: { workflow_id, type, config, enabled }) { id } }`
+* **Update Trigger**: `mutation { update_workflow_triggers_by_pk(pk_columns: { id }, _set: { enabled, config }) { id } }`
+* **Delete Trigger**: `mutation { delete_workflow_triggers_by_pk(id) { id } }`
+* **Aggregate Query**:
+  ```graphql
+  query GetWorkflowAggregate($id: uuid!) {
+    workflows_by_pk(id: $id) {
+      id
+      name
+      org_id
+      steps(order_by: { position: asc }) { id position type name config }
+      triggers { id type config enabled }
+      runs(order_by: { created_at: desc }, limit: 1) { id trigger_type status started_at completed_at }
+    }
+  }
+  ```
 
 ---
 
-## Executed Server-Side Authorization Handlers
+### 2. Internal Server Endpoints & Hasura Actions
+* **Hasura Action `triggerWorkflowRun`** (`/api/actions/trigger-workflow`): Verifies caller role, checks quota limit, initializes workflow run.
+* **Hasura Action `approveStep`** (`/api/actions/approve-step`): Verifies approver role, checks `approval_gate` paused status, updates `step_runs` and resumes execution.
 
-1. **`triggerWorkflowRun` Action Handler** (`src/pages/api/actions/trigger-workflow.ts`):
-   - Extracts `x-hasura-user-id` session header.
-   - Loads workflow -> verifies organization membership and role.
-   - Restricts `viewer` role (returns HTTP 403 Forbidden).
-   - Atomically updates organization monthly quota limit.
+---
 
-2. **`approveStep` Action Handler** (`src/pages/api/actions/approve-step.ts`):
-   - Extracts `x-hasura-user-id` session header.
-   - Verifies target step is an `approval_gate` in `paused` state.
-   - Restricts `viewer` role (returns HTTP 403 Forbidden).
-   - Sets `status = 'completed'`, records `approved_by` and `approved_at`, resumes workflow run.
+## Declarative Hasura Permission Matrix
 
-3. **Privileged Step API Handler** (`src/pages/api/workflows/steps.ts`):
-   - Enforces owner-only permission for `db_write` and `notify` step types.
-
-4. **Privileged Trigger API Handler** (`src/pages/api/workflows/triggers.ts`):
-   - Enforces owner-only permission for `webhook` trigger types.
+| Role | Read Workflow / Steps / Triggers | Insert Normal Step (`llm_call`, `http_request`) | Insert Privileged Step (`db_write`, `notify`) | Insert Webhook Trigger | Reorder Steps | Delete Workflow |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Owner** | Allowed | Allowed | **Allowed** | **Allowed** | Allowed | Allowed |
+| **Editor** | Allowed | Allowed | **DENIED (Hasura Check)** | **DENIED (Hasura Check)** | Allowed | Denied |
+| **Viewer** | Allowed | Denied | Denied | Denied | Denied | Denied |
