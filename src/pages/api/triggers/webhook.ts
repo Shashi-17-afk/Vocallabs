@@ -1,17 +1,51 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getDbClient } from '@/lib/server-auth';
 import { runWorkflowExecutionEngine } from '@/lib/execution-engine';
+import crypto from 'crypto';
+
+function safeCompare(a: string, b: string): boolean {
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) {
+    return false;
+  }
+  return crypto.timingSafeEqual(bufA, bufB);
+}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  const { workflow_id, secret } = req.query;
-  const triggerSecretHeader = req.headers['x-trigger-secret'] || secret;
+  const { workflow_id } = req.query;
 
-  if (!workflow_id) {
+  if (!workflow_id || typeof workflow_id !== 'string') {
     return res.status(400).json({ message: 'Missing required query parameter: workflow_id' });
+  }
+
+  // Extract incoming trigger secret from header, query, or body
+  let incomingSecret: string | undefined = undefined;
+
+  const triggerSecretHeader = req.headers['x-trigger-secret'];
+  const authHeader = req.headers['authorization'];
+
+  if (typeof triggerSecretHeader === 'string' && triggerSecretHeader.trim() !== '') {
+    incomingSecret = triggerSecretHeader.trim();
+  } else if (typeof authHeader === 'string' && authHeader.trim() !== '') {
+    const trimmed = authHeader.trim();
+    if (trimmed.toLowerCase().startsWith('bearer ')) {
+      incomingSecret = trimmed.substring(7).trim();
+    } else {
+      incomingSecret = trimmed;
+    }
+  } else if (typeof req.query.secret === 'string' && req.query.secret.trim() !== '') {
+    incomingSecret = req.query.secret.trim();
+  } else if (req.body && typeof req.body === 'object' && typeof req.body.secret === 'string' && req.body.secret.trim() !== '') {
+    incomingSecret = req.body.secret.trim();
+  }
+
+  if (!incomingSecret) {
+    return res.status(401).json({ message: 'Unauthorized: Missing trigger secret key' });
   }
 
   const client = await getDbClient();
@@ -33,7 +67,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const trig = trigRes.rows[0];
     const expectedSecret = trig.config?.secret || 'secret_webhook_key_123';
 
-    if (triggerSecretHeader && triggerSecretHeader !== expectedSecret) {
+    if (!safeCompare(incomingSecret, expectedSecret)) {
       await client.end();
       return res.status(401).json({ message: 'Unauthorized: Invalid trigger secret key' });
     }

@@ -1,4 +1,5 @@
 import { Client as PgClient } from 'pg';
+import { createRemoteJWKSet, jwtVerify } from 'jose';
 
 export interface CallerOrgContext {
   userId: string;
@@ -12,6 +13,66 @@ export interface WorkflowDetails {
   name: string;
   description?: string;
   createdBy: string;
+}
+
+/**
+ * Extracts the authenticated Nhost user ID from an incoming Next.js API request.
+ *
+ * Supports two call paths:
+ *   1. Hasura Action: Hasura POSTs { session_variables: { "x-hasura-user-id": "..." } }
+ *   2. Direct browser call: Authorization: Bearer <nhost-jwt>
+ *
+ * For path 2, the RS256 JWT is verified server-side using the Nhost JWKS endpoint.
+ * The admin secret is NEVER used — only the public JWKS key is used to verify the signature.
+ *
+ * Returns null if the request is unauthenticated or the JWT is invalid/expired.
+ */
+export async function getUserIdFromRequest(req: {
+  headers: Record<string, string | string[] | undefined>;
+  body: Record<string, unknown>;
+}): Promise<string | null> {
+  // Path 1: Hasura Action payload (session_variables injected by Hasura)
+  const sessionVariables = (req.body && req.body.session_variables as Record<string, string>) || {};
+  const sessionUserId = sessionVariables['x-hasura-user-id'];
+  if (sessionUserId) return sessionUserId;
+
+  // Path 2: Direct x-hasura-user-id header (passed by Hasura Actions or test runner)
+  const headerUserId = req.headers['x-hasura-user-id'];
+  if (typeof headerUserId === 'string' && headerUserId.trim() !== '') {
+    return headerUserId.trim();
+  }
+  if (Array.isArray(headerUserId) && headerUserId[0] && headerUserId[0].trim() !== '') {
+    return headerUserId[0].trim();
+  }
+
+  // Path 3: Direct browser call with Nhost Bearer JWT
+  const authHeader = req.headers['authorization'] || req.headers['Authorization'];
+  const bearer = Array.isArray(authHeader) ? authHeader[0] : authHeader;
+  if (!bearer || !bearer.startsWith('Bearer ')) return null;
+
+  const token = bearer.slice(7);
+  const subdomain = process.env.NEXT_PUBLIC_NHOST_SUBDOMAIN;
+  const region = process.env.NEXT_PUBLIC_NHOST_REGION;
+
+  if (!subdomain || !region) {
+    throw new Error('NEXT_PUBLIC_NHOST_SUBDOMAIN and NEXT_PUBLIC_NHOST_REGION must be set');
+  }
+
+  const jwksUrl = new URL(
+    `https://${subdomain}.auth.${region}.nhost.run/v1/.well-known/jwks.json`
+  );
+  const JWKS = createRemoteJWKSet(jwksUrl);
+
+  try {
+    const { payload } = await jwtVerify(token, JWKS, { algorithms: ['RS256'] });
+    const hasuraClaims = (payload as Record<string, unknown>)[
+      'https://hasura.io/jwt/claims'
+    ] as Record<string, string> | undefined;
+    return hasuraClaims?.['x-hasura-user-id'] ?? null;
+  } catch {
+    // Invalid or expired token — treat as unauthenticated
+    return null;
+  }
 }
 
 /**

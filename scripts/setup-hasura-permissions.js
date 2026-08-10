@@ -139,7 +139,7 @@ async function setupPermissions() {
         role: 'user',
         permission: {
           columns: ['id', 'org_id', 'user_id', 'role', 'created_at', 'updated_at'],
-          filter: isMemberFilter
+          filter: { user_id: { _eq: 'X-Hasura-User-Id' } }
         }
       }
     },

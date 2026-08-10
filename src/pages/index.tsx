@@ -93,8 +93,8 @@ const SUBSCRIBE_ACTIVE_RUN = gql`
 `;
 
 const INSERT_WORKFLOW = gql`
-  mutation InsertWorkflow($org_id: uuid!, $name: String!, $description: String) {
-    insert_workflows_one(object: { org_id: $org_id, name: $name, description: $description }) {
+  mutation InsertWorkflow($org_id: uuid!, $name: String!, $description: String, $created_by: uuid!) {
+    insert_workflows_one(object: { org_id: $org_id, name: $name, description: $description, created_by: $created_by }) {
       id
     }
   }
@@ -222,10 +222,10 @@ export default function Dashboard() {
   // Workflow Handlers
   const handleCreateWorkflow = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedOrgId || !newWfName) return;
+    if (!selectedOrgId || !newWfName || !userData?.id) return;
     try {
       const res = await insertWorkflow({
-        variables: { org_id: selectedOrgId, name: newWfName, description: newWfDesc },
+        variables: { org_id: selectedOrgId, name: newWfName, description: newWfDesc, created_by: userData.id },
       });
       setShowNewWfModal(false);
       setNewWfName('');

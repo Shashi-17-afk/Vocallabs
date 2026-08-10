@@ -22,5 +22,5 @@
     "interval_sec": 10,
     "timeout_sec": 60
   },
-  "replace": false
+  "replace": true
 }

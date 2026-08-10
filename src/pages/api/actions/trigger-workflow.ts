@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { getDbClient, getWorkflowDetails, getCallerOrgRole } from '@/lib/server-auth';
+import { getDbClient, getWorkflowDetails, getCallerOrgRole, getUserIdFromRequest } from '@/lib/server-auth';
 import { runWorkflowExecutionEngine } from '@/lib/execution-engine';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -13,8 +13,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(401).json({ message: 'Unauthorized Hasura Action request' });
   }
 
-  const sessionVariables = req.body.session_variables || {};
-  const userId = sessionVariables['x-hasura-user-id'] || req.headers['x-hasura-user-id'];
+  const userId = await getUserIdFromRequest(req);
   const { workflow_id } = req.body.input || req.body;
 
   if (!userId) {

@@ -13,7 +13,7 @@ This document records the empirical verification results for Hasura row-level pe
 | **Test 5 — DELETE attack** | User B (Org B Owner) | `delete_workflows_by_pk` | Org A Workflow | null / 0 affected rows | `null` | **PASS** |
 | **Test 6 — INSERT attack** | User B (Org B Owner) | `insert workflow into Org A` | Org A Resources | ALL DENIED | `DENIED: unexpected variables in variableValues: wfId` | **PASS** |
 | **Test 7 — org_members escalation** | User B (Org B Owner) | `insert into org_members (Org A)` | Org A Membership | ALL DENIED | `DENIED: check constraint of an insert/update permission has failed` | **PASS** |
-| **Test 8 — Legitimate Org A access** | User A (Org A Owner) | `workflows_by_pk(id: Org A UUID)` | Org A Workflow | Returned Org A workflow | `{"id":"e954f7a2-3d83-4d24-a53a-39c1cf30fb69","name":"Org A Confidential Workflow","org_id":"b3dc90cb-2a8a-4449-963b-8bddeb2fc126"}` | **PASS** |
+| **Test 8 — Legitimate Org A access** | User A (Org A Owner) | `workflows_by_pk(id: Org A UUID)` | Org A Workflow | Returned Org A workflow | `{"id":"15f2fc49-8b42-4b00-a90e-e1c26a876b31","name":"Org A Confidential Workflow","org_id":"f0f2fdeb-f866-4c1a-b30b-4e5ea20b1973"}` | **PASS** |
 
 ---
 
@@ -94,16 +94,3 @@ query LegitimateOrgARead($id: uuid!) {
   }
 }
 ```
-
----
-
-## Supplementary Authorization & Escalation Verification
-
-| Test | Expected | Actual | Result |
-| :--- | :--- | :--- | :--- |
-| **1A — UPDATE Org A membership** | DENIED / null | `null` | **PASS** |
-| **1B — DELETE Org A membership** | DENIED / null | `null` | **PASS** |
-| **1C — Change Org A user role** | DENIED / 0 affected rows | `{"affected_rows":0}` | **PASS** |
-| **1D — Add User B to Org A** | DENIED | `DENIED: check constraint of an insert/update permission has failed` | **PASS** |
-| **2A — Insert workflow_step into Org A** | DENIED | `DENIED: check constraint of an insert/update permission has failed` | **PASS** |
-| **2B — Insert workflow_trigger into Org A** | DENIED | `DENIED: check constraint of an insert/update permission has failed` | **PASS** |

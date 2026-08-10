@@ -11,8 +11,8 @@ export interface ExecutionContext {
 
 export function interpolateVariables(template: string, ctx: ExecutionContext): string {
   if (typeof template !== 'string') return template;
-  return template.replace(/\{\{\s*([\w\.]+)\s*\}\}/g, (_, path) => {
-    const parts = path.split('.');
+  return template.replace(/\{\{\s*([^\}]+?)\s*\}\}/g, (_, path) => {
+    const parts = path.trim().split('.');
     let curr: any = { ...ctx.stepOutputs, input: ctx.stepOutputs.input || {} };
     for (const p of parts) {
       if (curr && typeof curr === 'object' && p in curr) {
@@ -112,10 +112,11 @@ export async function executeStep(
 
       if (step.type === 'llm_call') {
         const prompt = interpolateVariables(step.config?.prompt || 'Hello AI', ctx);
+        const completion = step.config?.completion || `[LLM Response for: "${prompt}"] Execution successful.`;
         output = {
           prompt,
-          completion: `[LLM Response for: "${prompt}"] Execution successful.`,
-          tokens_used: prompt.length + 24,
+          completion,
+          tokens_used: prompt.length + completion.length,
         };
       } else if (step.type === 'http_request') {
         const url = interpolateVariables(step.config?.url || 'https://httpbin.org/get', ctx);
@@ -246,10 +247,15 @@ export async function runWorkflowExecutionEngine(
     );
 
     const stepOutputs: Record<string, any> = {};
+    let activeBranch: 'true_branch' | 'false_branch' | null = null;
+
     for (const row of stepRunsRes.rows) {
       if (row.output) {
         stepOutputs[row.name] = row.output;
         stepOutputs[`step${row.position}`] = row.output;
+        if (row.output.branch_taken) {
+          activeBranch = row.output.branch_taken;
+        }
       }
     }
 
@@ -270,7 +276,48 @@ export async function runWorkflowExecutionEngine(
         continue;
       }
 
+      // Branch target check: skip step if active branch does not match step target branch
+      const rawTargetBranch = step.config?.target_branch || step.config?.branch;
+      if (rawTargetBranch) {
+        let normalizedTarget = String(rawTargetBranch).trim().toLowerCase();
+        if (normalizedTarget === 'true') normalizedTarget = 'true_branch';
+        if (normalizedTarget === 'false') normalizedTarget = 'false_branch';
+
+        if (activeBranch && normalizedTarget !== activeBranch) {
+          const skipOutput = {
+            skipped: true,
+            reason: `Step skipped: active branch is '${activeBranch}' but step target branch is '${normalizedTarget}'`,
+          };
+
+          const existingSrRes = await client.query(
+            `SELECT id FROM public.step_runs WHERE workflow_run_id = $1 AND workflow_step_id = $2;`,
+            [workflowRunId, step.id]
+          );
+
+          if (existingSrRes.rows.length > 0) {
+            await client.query(
+              `UPDATE public.step_runs SET status = 'completed', output = $1, completed_at = NOW() WHERE id = $2;`,
+              [JSON.stringify(skipOutput), existingSrRes.rows[0].id]
+            );
+          } else {
+            await client.query(
+              `INSERT INTO public.step_runs (workflow_run_id, workflow_step_id, status, input, output, attempt_count, started_at, completed_at)
+               VALUES ($1, $2, 'completed', $3, $4, 1, NOW(), NOW());`,
+              [workflowRunId, step.id, JSON.stringify(step.config || {}), JSON.stringify(skipOutput)]
+            );
+          }
+
+          ctx.stepOutputs[step.name] = skipOutput;
+          ctx.stepOutputs[`step${step.position}`] = skipOutput;
+          continue;
+        }
+      }
+
       const res = await executeStep(client, step, ctx);
+
+      if (res.status === 'completed' && res.output && res.output.branch_taken) {
+        activeBranch = res.output.branch_taken;
+      }
 
       if (res.status === 'paused') {
         await client.end();

@@ -6,19 +6,19 @@ This document records the empirical verification results for Phase 7 (Native Has
 
 | Test | User Role | GraphQL Operation | Expected | Actual Result | Status |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **1. Owner creates workflow** | Owner A | `GraphQL insert_workflows_one` | PASS | `Created UUID 9f644919-7ea9-409a-8073-7a7c894ff1b8` | **PASS** |
-| **2. Editor creates workflow** | Editor A | `GraphQL insert_workflows_one` | PASS | `Created UUID 76f885ca-8120-4d3a-b84e-e951b7dfd98d` | **PASS** |
-| **3. Editor edits workflow** | Editor A | `GraphQL update_workflows_by_pk` | PASS | `{"id":"9f644919-7ea9-409a-8073-7a7c894ff1b8","name":"Updated Org A Workflow Name"}` | **PASS** |
-| **4. Editor creates normal step** | Editor A | `GraphQL insert_workflow_steps_one` | PASS | `Created Step UUID 184fd214-459f-4715-9d77-482e72f47f34` | **PASS** |
-| **5. Editor edits normal step** | Editor A | `GraphQL update_workflow_steps_by_pk` | PASS | `{"id":"184fd214-459f-4715-9d77-482e72f47f34","name":"Renamed LLM Step"}` | **PASS** |
+| **1. Owner creates workflow** | Owner A | `GraphQL insert_workflows_one` | PASS | `Created UUID 29af1a05-07bc-4a04-8c87-9c4a00d00add` | **PASS** |
+| **2. Editor creates workflow** | Editor A | `GraphQL insert_workflows_one` | PASS | `Created UUID e355961b-7563-479d-aefb-b358043abe58` | **PASS** |
+| **3. Editor edits workflow** | Editor A | `GraphQL update_workflows_by_pk` | PASS | `{"id":"29af1a05-07bc-4a04-8c87-9c4a00d00add","name":"Updated Org A Workflow Name"}` | **PASS** |
+| **4. Editor creates normal step** | Editor A | `GraphQL insert_workflow_steps_one` | PASS | `Created Step UUID 35c7f093-9120-4a2b-9fb4-ae589ecb2c07` | **PASS** |
+| **5. Editor edits normal step** | Editor A | `GraphQL update_workflow_steps_by_pk` | PASS | `{"id":"35c7f093-9120-4a2b-9fb4-ae589ecb2c07","name":"Renamed LLM Step"}` | **PASS** |
 | **6. Editor reorders steps** | Editor A | `GraphQL update_workflow_steps_many` | PASS | `{"update_workflow_steps_many":[{"affected_rows":1},{"affected_rows":1}]}` | **PASS** |
 | **7. Editor cannot create db_write** | Editor A | `GraphQL insert_workflow_steps_one (db_write)` | DENIED | `DENIED: check constraint of an insert/update permission has failed` | **PASS** |
 | **8. Editor cannot create notify** | Editor A | `GraphQL insert_workflow_steps_one (notify)` | DENIED | `DENIED: check constraint of an insert/update permission has failed` | **PASS** |
 | **9. Editor cannot create webhook trigger** | Editor A | `GraphQL insert_workflow_triggers_one (webhook)` | DENIED | `DENIED: check constraint of an insert/update permission has failed` | **PASS** |
-| **10. Owner creates db_write** | Owner A | `GraphQL insert_workflow_steps_one (db_write)` | PASS | `Created Step UUID 970b382a-8f12-4a01-a1b3-35061ce48ffc` | **PASS** |
-| **11. Owner creates notify** | Owner A | `GraphQL insert_workflow_steps_one (notify)` | PASS | `Created Step UUID 943cc3a7-2616-46fc-a5d8-2019b1869d9a` | **PASS** |
-| **12. Owner creates webhook trigger** | Owner A | `GraphQL insert_workflow_triggers_one (webhook)` | PASS | `Created Trigger UUID b422e5f7-c0fd-419b-886d-2f158cbbb350` | **PASS** |
-| **13. Owner/editor edits trigger** | Owner A | `GraphQL update_workflow_triggers_by_pk` | PASS | `{"id":"b422e5f7-c0fd-419b-886d-2f158cbbb350","enabled":false}` | **PASS** |
+| **10. Owner creates db_write** | Owner A | `GraphQL insert_workflow_steps_one (db_write)` | PASS | `Created Step UUID 4d4eab40-19ff-4185-b25c-c6ebba75df20` | **PASS** |
+| **11. Owner creates notify** | Owner A | `GraphQL insert_workflow_steps_one (notify)` | PASS | `Created Step UUID ee26ff76-27b3-48dd-810e-0badcc39c33e` | **PASS** |
+| **12. Owner creates webhook trigger** | Owner A | `GraphQL insert_workflow_triggers_one (webhook)` | PASS | `Created Trigger UUID 63562f0e-6cc9-443b-9989-d6a68648382c` | **PASS** |
+| **13. Owner/editor edits trigger** | Owner A | `GraphQL update_workflow_triggers_by_pk` | PASS | `{"id":"63562f0e-6cc9-443b-9989-d6a68648382c","enabled":false}` | **PASS** |
 | **14. Viewer cannot mutate** | Viewer A | `GraphQL insert_workflows_one` | DENIED | `DENIED: check constraint of an insert/update permission has failed` | **PASS** |
 | **15. Org B cross-org mutation** | Owner B (Org B) | `GraphQL update_workflows_by_pk` | DENIED (null) | `null` | **PASS** |
 | **16. Workflow aggregate query** | Editor A | `GraphQL workflows_by_pk with nested steps, triggers, runs` | PASS (Returned steps + triggers + recent run) | `Steps: 4, Triggers: 1, Run Status: completed` | **PASS** |
